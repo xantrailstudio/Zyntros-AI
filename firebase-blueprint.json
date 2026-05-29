@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "Chat": {
+      "title": "Chat",
+      "description": "Represents an active chat thread session",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the chat thread"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Identifier of the user owning this chat session"
+        },
+        "name": {
+          "type": "string",
+          "description": "The title of the chat"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp of this chat session"
+        }
+      },
+      "required": ["id", "userId", "name", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Represents a message inside a chat thread",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the message"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Identifier of the user owning this message"
+        },
+        "content": {
+          "type": "string",
+          "description": "The body of the message"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "assistant"],
+          "description": "Role of the publisher"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp of this message"
+        }
+      },
+      "required": ["id", "userId", "content", "role", "createdAt"]
+    },
+    "Memory": {
+      "title": "Memory",
+      "description": "A long-term cognitive fact or personal context anchor",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the memory document"
+        },
+        "userId": {
+          "type": "string",
+          "description": "User associated with this memory"
+        },
+        "content": {
+          "type": "string",
+          "description": "The textual content of the memory"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp of the memory"
+        }
+      },
+      "required": ["id", "userId", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/chats/{chatId}": {
+      "schema": "Chat",
+      "description": "High-fidelity chat threads collection"
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Conversation message subcollection"
+    },
+    "/memories/{memoryId}": {
+      "schema": "Memory",
+      "description": "Cognitive long-term persistent brain facts"
+    }
+  }
+}

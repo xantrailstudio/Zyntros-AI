@@ -1,0 +1,37 @@
+{
+  "name": "memory-chat-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@google/genai": "*",
+    "clsx": "^2.1.1",
+    "d3": "^7.9.0",
+    "firebase": "^10.8.0",
+    "lucide-react": "^0.468.0",
+    "motion": "^11.15.0",
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "recharts": "^2.15.0",
+    "tailwind-merge": "^3.6.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/d3": "^7.4.3",
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^16.2.6",
+    "postcss": "^8.4.31",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

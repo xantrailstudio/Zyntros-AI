@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Catch-all Default-Deny rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Standard high-reliability global helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // STANDALONE SCHEMA GATES (Validation Blueprints)
+    function isValidChat(chat) {
+      return chat.id is string && chat.id.size() <= 128 &&
+             chat.userId == request.auth.uid &&
+             chat.name is string && chat.name.size() <= 200 &&
+             chat.createdAt != null;
+    }
+
+    function isValidMessage(msg) {
+      return msg.id is string && msg.id.size() <= 128 &&
+             msg.userId == request.auth.uid &&
+             msg.content is string && msg.content.size() <= 10000 &&
+             (msg.role == 'user' || msg.role == 'assistant') &&
+             msg.createdAt != null;
+    }
+
+    function isValidMemory(mem) {
+      return mem.id is string && mem.id.size() <= 128 &&
+             mem.userId == request.auth.uid &&
+             mem.content is string && mem.content.size() <= 2000 &&
+             mem.createdAt != null;
+    }
+
+    // CLIENT RULES
+    
+    // chats collection rules
+    match /chats/{chatId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(chatId) && isValidChat(request.resource.data);
+      allow update: if isSignedIn() && isValidId(chatId) &&
+                       resource.data.userId == request.auth.uid &&
+                       request.resource.data.userId == resource.data.userId &&
+                       request.resource.data.name is string && request.resource.data.name.size() <= 200 &&
+                       request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isSignedIn() && isValidId(chatId) && resource.data.userId == request.auth.uid;
+
+      // message subcollection schema matching
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+        allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+        allow create: if isSignedIn() && isValidId(messageId) && isValidMessage(request.resource.data);
+        allow update: if false; // immutable conversation logs
+        allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      }
+    }
+
+    // memories collection rules
+    match /memories/{memoryId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(memoryId) && isValidMemory(request.resource.data);
+      allow update: if false; // manual/auto-memories are immutable once recorded
+      allow delete: if isSignedIn() && isValidId(memoryId) && resource.data.userId == request.auth.uid;
+    }
+
+  }
+}

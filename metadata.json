@@ -1,0 +1,6 @@
+{
+  "name": "Zyntros AI",
+  "description": "Zyntros AI - A high-performance conversational AI companion featuring secure, persistent cognitive fact memory, Google OAuth, and resilient contextual reasoning.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

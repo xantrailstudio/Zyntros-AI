@@ -1,0 +1,128 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global safety net: Deny all reads/writes by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Primitives (Phase 3)
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    function incoming(request) { 
+      return request.resource.data; 
+    }
+    function existing(resource) { 
+      return resource.data; 
+    }
+    function isSignedIn(request) { 
+      return request.auth != null; 
+    }
+    function isOwner(request, userId) {
+      return isSignedIn(request) && request.auth.uid == userId;
+    }
+
+    // --- Entity Specific Validation helpers ---
+
+    // 1. User Profile Public
+    function isValidUserProfilePublic(data) {
+      return data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && (!data.keys().hasAny(['photoURL']) || (data.photoURL is string && data.photoURL.size() <= 2048))
+        && data.keys().hasAll(['displayName']) 
+        && data.keys().size() >= 1 && data.keys().size() <= 3;
+    }
+
+    // 2. User Profile Private
+    function isValidUserProfilePrivate(data) {
+      return data.email is string && data.email.size() >= 3 && data.email.size() <= 320;
+    }
+
+    // 3. User memories (persisted semantic details of user)
+    function isValidMemory(data) {
+      return data.id is string && isValidId(data.id)
+        && data.content is string && data.content.size() >= 1 && data.content.size() <= 50000
+        && data.createdAt is timestamp
+        && data.keys().hasAll(['id', 'content', 'createdAt']) && data.keys().size() == 3;
+    }
+
+    // 4. Chat validation (Conversations index)
+    function isValidChat(data, request) {
+      return data.id is string && isValidId(data.id)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 200
+        && data.userId is string && data.userId == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.keys().hasAll(['id', 'name', 'userId', 'createdAt', 'updatedAt']) && data.keys().size() == 5;
+    }
+
+    // 5. Message validation
+    function isValidMessage(data) {
+      return data.id is string && isValidId(data.id)
+        && data.role is string && (data.role == 'user' || data.role == 'assistant')
+        // Message limit is 20,000 characters
+        && data.content is string && data.content.size() <= 20000
+        && data.createdAt is timestamp
+        && data.keys().hasAll(['id', 'role', 'content', 'createdAt']) && data.keys().size() == 4;
+    }
+
+    // Relational Parent Check Helper (fetch parent chat)
+    function isChatOwner(request, database, chatId) {
+      return get(/databases/$(database)/documents/chats/$(chatId)).data.userId == request.auth.uid;
+    }
+
+    // --- Core Match Rules ---
+
+    // Public Profile Rule
+    match /users/{userId}/public/profile {
+      allow read: if isSignedIn(request); 
+      allow create, update: if isOwner(request, userId) && isValidId(userId) && isValidUserProfilePublic(incoming(request));
+      allow delete: if false;
+    }
+
+    // Private Profile Rule (PII Isolated)
+    match /users/{userId}/private/info {
+      allow read: if isOwner(request, userId);
+      allow create, update: if isOwner(request, userId) && isValidId(userId) && isValidUserProfilePrivate(incoming(request));
+      allow delete: if false;
+    }
+
+    // User Memories List (Isolated context memory)
+    match /users/{userId}/memories/{memoryId} {
+      allow read, list: if isOwner(request, userId) && isValidId(userId);
+      allow create, update: if isOwner(request, userId) && isValidId(userId) && isValidId(memoryId) && isValidMemory(incoming(request))
+        && incoming(request).createdAt == request.time;
+      allow delete: if isOwner(request, userId) && isValidId(userId) && isValidId(memoryId);
+    }
+
+    // Chats parent collection
+    match /chats/{chatId} {
+      allow get: if isSignedIn(request) && isValidId(chatId) && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn(request) && resource.data.userId == request.auth.uid; // Guard list query on owner ID
+      allow create: if isSignedIn(request) && isValidId(chatId) && isValidChat(incoming(request), request) 
+        && incoming(request).createdAt == request.time;
+      
+      allow update: if isSignedIn(request) && isValidId(chatId) 
+        && resource.data.userId == request.auth.uid 
+        && isValidChat(incoming(request), request)
+        && incoming(request).updatedAt == request.time
+        && incoming(request).userId == existing(resource).userId 
+        && incoming(request).createdAt == existing(resource).createdAt 
+        && (
+          incoming(request).diff(existing(resource)).affectedKeys().hasOnly(['name', 'updatedAt'])
+        );
+        
+      allow delete: if isSignedIn(request) && isValidId(chatId) && resource.data.userId == request.auth.uid;
+    }
+
+    // Messages child collection
+    match /chats/{chatId}/messages/{messageId} {
+      allow read, list: if isSignedIn(request) && isChatOwner(request, database, chatId);
+      allow create: if isSignedIn(request) && isValidId(chatId) && isValidId(messageId) && isValidMessage(incoming(request))
+        && incoming(request).createdAt == request.time
+        && isChatOwner(request, database, chatId);
+      allow update, delete: if false; // Immutable client-side
+    }
+  }
+}
